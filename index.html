@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Huffman File Compression Studio | DAA Capstone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.5);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.5);
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.8);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30">
+          HC
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">Huffman File Compression Studio</h1>
+          <p class="text-xs text-slate-400">Greedy Min-Heap Prefix Coding • Lossless Binary Compressor & Tree Visualizer</p>
+        </div>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+        <button id="tabCompress" onclick="switchMode('compress')" class="px-4 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white transition">
+          Compress & Visualize
+        </button>
+        <button id="tabDecompress" onclick="switchMode('decompress')" class="px-4 py-1.5 rounded-md text-sm font-medium text-slate-300 hover:text-white transition">
+          Decompress & Verify (.huff)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- COMPRESS MODE -->
+    <div id="compressView" class="space-y-6">
+      <!-- Top Row: Input & Metrics -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Input Panel -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400">1. Input Source Text</h2>
+              <label class="cursor-pointer text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                Upload .txt
+                <input type="file" id="txtFileInput" accept=".txt,.md,.csv,.json,.py,.html" class="hidden" />
+              </label>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button onclick="loadPreset('demo')" class="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                Simple Tree Demo
+              </button>
+              <button onclick="loadPreset('medium')" class="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                Default Sample
+              </button>
+              <button onclick="loadPreset('large')" class="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                Load Large Sample (~10 KB)
+              </button>
+            </div>
+
+            <textarea id="sourceText" rows="8" class="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 custom-scrollbar font-mono" placeholder="Enter or paste text to compress..."></textarea>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 pt-2 border-t border-slate-800">
+            <span id="charCountLabel" class="text-xs text-slate-400">0 characters</span>
+            <div class="flex gap-2">
+              <button onclick="runCompression()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-500/20 transition">
+                Compress Now
+              </button>
+              <button id="downloadHuffBtn" onclick="downloadHuffFile()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 transition">
+                Download .huff
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics & Analysis Panel -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col justify-between space-y-5">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400">2. Compression & Complexity Metrics</h2>
+              <span id="integrityBadge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium">
+                Lossless Integrity: Verified
+              </span>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
+                <p class="text-xs text-slate-400">Original Size</p>
+                <p id="statOriginalSize" class="text-lg font-bold text-white mt-1">0 B</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">UTF-8 / ASCII</p>
+              </div>
+              <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
+                <p class="text-xs text-slate-400">Compressed (.huff)</p>
+                <p id="statCompressedSize" class="text-lg font-bold text-indigo-400 mt-1">0 B</p>
+                <p id="statBreakdown" class="text-[11px] text-slate-500 mt-0.5">Hdr: 0 B | Data: 0 B</p>
+              </div>
+              <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
+                <p class="text-xs text-slate-400">Space Saved</p>
+                <p id="statRatio" class="text-lg font-bold text-emerald-400 mt-1">0.00%</p>
+                <p id="statAvgBits" class="text-[11px] text-slate-500 mt-0.5">Avg: 0.00 bits/char</p>
+              </div>
+              <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
+                <p class="text-xs text-slate-400">Execution Time</p>
+                <p id="statTime" class="text-lg font-bold text-amber-400 mt-1">0.00 ms</p>
+                <p id="statUnique" class="text-[11px] text-slate-500 mt-0.5">Unique K = 0</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Encoded Bitstream Preview -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-300">Encoded Binary Bitstream Preview (First 256 bits)</span>
+              <span id="totalBitsLabel" class="text-xs text-slate-400">0 total bits</span>
+            </div>
+            <div id="bitstreamPreview" class="bg-slate-950/90 border border-slate-800 rounded-xl p-3 font-mono text-xs text-indigo-300 break-all max-h-24 overflow-y-auto custom-scrollbar">
+              -
+            </div>
+          </div>
+
+          <!-- Complexity Bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-800 text-xs">
+            <div class="bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800/80">
+              <span class="text-slate-400">Tree Construction:</span>
+              <span class="font-mono text-indigo-300 ml-1">O(K log K)</span>
+            </div>
+            <div class="bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800/80">
+              <span class="text-slate-400">Encode / Decode:</span>
+              <span class="font-mono text-indigo-300 ml-1">O(N)</span>
+            </div>
+            <div class="bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800/80">
+              <span class="text-slate-400">Space Complexity:</span>
+              <span class="font-mono text-indigo-300 ml-1">O(N + K)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Huffman Tree Visualizer & Code Table -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- SVG Tree Visualizer -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400">3. Interactive Huffman Tree Diagram</h2>
+              <p class="text-xs text-slate-400">Left edge = <span class="text-amber-400 font-mono font-bold">0</span>, Right edge = <span class="text-emerald-400 font-mono font-bold">1</span> • Green nodes = Leaf symbols</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="zoomTree(-0.15)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-700">-</button>
+              <button onclick="resetZoom()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs border border-slate-700">100%</button>
+              <button onclick="zoomTree(0.15)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-700">+</button>
+            </div>
+          </div>
+
+          <div id="treeContainer" class="bg-slate-950/90 border border-slate-800 rounded-xl overflow-auto custom-scrollbar h-[420px] flex items-start justify-center p-4">
+            <svg id="huffmanSvg" class="origin-top-left transition-transform duration-150"></svg>
+          </div>
+        </div>
+
+        <!-- Prefix Code Table -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400">4. Prefix Code Table</h2>
+            <input type="text" id="searchCodeInput" oninput="filterCodeTable()" placeholder="Filter symbol..." class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-36" />
+          </div>
+
+          <div class="overflow-auto custom-scrollbar h-[420px] border border-slate-800 rounded-xl bg-slate-950/60">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-900 sticky top-0 text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3 font-semibold">Symbol</th>
+                  <th class="py-2.5 px-3 font-semibold">Freq</th>
+                  <th class="py-2.5 px-3 font-semibold">Huffman Code</th>
+                  <th class="py-2.5 px-3 font-semibold text-right">Bits</th>
+                </tr>
+              </thead>
+              <tbody id="codeTableBody" class="divide-y divide-slate-800/70 font-mono"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DECOMPRESS MODE -->
+    <div id="decompressView" class="hidden max-w-3xl mx-auto space-y-6">
+      <div class="glass-card rounded-2xl p-6 space-y-5">
+        <div>
+          <h2 class="text-base font-bold text-white">Decompress & Verify Binary .huff Archive</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Upload a <code class="text-indigo-400">.huff</code> file generated by this studio. The decoder reads the embedded frequency header, rebuilds the Huffman tree, unpacks raw bytes, and restores the exact original text.
+          </p>
+        </div>
+
+        <label class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer bg-slate-950/50 transition">
+          <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16v-8m0 0l-3 3m3-3l3 3M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1" />
+          </svg>
+          <span class="text-sm font-medium text-slate-200">Click to select a .huff file</span>
+          <span class="text-xs text-slate-500 mt-1">Self-contained binary format with header metadata</span>
+          <input type="file" id="huffFileInput" accept=".huff" class="hidden" />
+        </label>
+
+        <div id="decompResultBox" class="hidden space-y-4 pt-2 border-t border-slate-800">
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-slate-900 p-3 rounded-xl border border-slate-800">
+              <p class="text-xs text-slate-400">Archive Size</p>
+              <p id="decompArchiveSize" class="text-base font-bold text-indigo-400 mt-0.5">0 B</p>
+            </div>
+            <div class="bg-slate-900 p-3 rounded-xl border border-slate-800">
+              <p class="text-xs text-slate-400">Restored Size</p>
+              <p id="decompRestoredSize" class="text-base font-bold text-emerald-400 mt-0.5">0 B</p>
+            </div>
+            <div class="bg-slate-900 p-3 rounded-xl border border-slate-800">
+              <p class="text-xs text-slate-400">Decode Time</p>
+              <p id="decompTime" class="text-base font-bold text-amber-400 mt-0.5">0.00 ms</p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">Decoded Output Text</span>
+              <button onclick="downloadDecodedTxt()" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition">
+                Download Restored .txt
+              </button>
+            </div>
+            <textarea id="decodedOutputText" rows="10" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 font-mono custom-scrollbar"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const PRESETS = {
+      demo: "ABRACADABRA!",
+      medium:
+        "Huffman coding is a lossless data compression algorithm developed by David A. Huffman in 1952. " +
+        "It assigns variable-length binary prefix codes to characters based on their frequencies: frequent symbols " +
+        "receive shorter bit sequences while rare symbols receive longer codes, guaranteeing unambiguous decoding.",
+      large: (
+        "Huffman coding is a lossless data compression algorithm developed by David A. Huffman while he was a Sc.D. student at MIT, " +
+        "and published in the 1952 paper 'A Method for the Construction of Minimum-Redundancy Codes'. " +
+        "Because no codeword is a prefix of any other codeword, the encoded bitstream can be decoded unambiguously from left to right " +
+        "without requiring special delimiter symbols between characters. Fixed-length encodings such as standard ASCII allocate 8 bits " +
+        "to every character regardless of frequency, whereas Huffman coding minimizes expected code length. "
+      ).repeat(20)
+    };
+
+    let currentState = {
+      root: null,
+      codes: {},
+      freqMap: {},
+      packedBytes: null,
+      lastDecodedText: "",
+      treeScale: 1
+    };
+
+    class HuffmanNode {
+      constructor(char, freq, left = null, right = null) {
+        this.char = char;
+        this.freq = freq;
+        this.left = left;
+        this.right = right;
+      }
+    }
+
+    function buildFrequencyMap(text) {
+      const freq = {};
+      for (const ch of text) {
+        freq[ch] = (freq[ch] || 0) + 1;
+      }
+      return freq;
+    }
+
+    function buildHuffmanTree(freqMap) {
+      const nodes = Object.entries(freqMap).map(([ch, freq]) => new HuffmanNode(ch, freq));
+      if (nodes.length === 0) return null;
+      if (nodes.length === 1) {
+        return new HuffmanNode(null, nodes[0].freq, nodes[0], null);
+      }
+      while (nodes.length > 1) {
+        nodes.sort((a, b) => a.freq - b.freq);
+        const left = nodes.shift();
+        const right = nodes.shift();
+        nodes.push(new HuffmanNode(null, left.freq + right.freq, left, right));
+      }
+      return nodes[0];
+    }
+
+    function generateCodes(node, prefix = "", codes = {}) {
+      if (!node) return codes;
+      if (node.char !== null) {
+        codes[node.char] = prefix || "0";
+        return codes;
+      }
+      generateCodes(node.left, prefix + "0", codes);
+      generateCodes(node.right, prefix + "1", codes);
+      return codes;
+    }
+
+    function packHuffBinary(freqMap, bitString) {
+      const encoder = new TextEncoder();
+      const headerJson = JSON.stringify(freqMap);
+      const headerBytes = encoder.encode(headerJson);
+
+      const extraPadding = (8 - (bitString.length % 8)) % 8;
+      const paddedBits = bitString + "0".repeat(extraPadding);
+      const payloadByteCount = paddedBits.length / 8;
+
+      // Format: [4-byte magic "HUFF"][4-byte headerLen][1-byte padding][headerBytes][payloadBytes]
+      const totalLength = 4 + 4 + 1 + headerBytes.length + payloadByteCount;
+      const buffer = new Uint8Array(totalLength);
+      const view = new DataView(buffer.buffer);
+
+      buffer[0] = 0x48; // H
+      buffer[1] = 0x55; // U
+      buffer[2] = 0x46; // F
+      buffer[3] = 0x46; // F
+      view.setUint32(4, headerBytes.length, false);
+      buffer[8] = extraPadding;
+
+      buffer.set(headerBytes, 9);
+
+      let offset = 9 + headerBytes.length;
+      for (let i = 0; i < paddedBits.length; i += 8) {
+        buffer[offset++] = parseInt(paddedBits.slice(i, i + 8), 2);
+      }
+
+      return {
+        buffer,
+        headerSize: 9 + headerBytes.length,
+        payloadSize: payloadByteCount
+      };
+    }
+
+    function decodeHuffBinary(buffer) {
+      if (
+        buffer.length < 9 ||
+        buffer[0] !== 0x48 ||
+        buffer[1] !== 0x55 ||
+        buffer[2] !== 0x46 ||
+        buffer[3] !== 0x46
+      ) {
+        throw new Error("Invalid .huff file signature.");
+      }
+      const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      const headerLen = view.getUint32(4, false);
+      const extraPadding = buffer[8];
+
+      const headerBytes = buffer.slice(9, 9 + headerLen);
+      const freqMap = JSON.parse(new TextDecoder().decode(headerBytes));
+      const root = buildHuffmanTree(freqMap);
+
+      const payloadBytes = buffer.slice(9 + headerLen);
+      let bitString = "";
+      for (let i = 0; i < payloadBytes.length; i++) {
+        bitString += payloadBytes[i].toString(2).padStart(8, "0");
+      }
+      if (extraPadding > 0) {
+        bitString = bitString.slice(0, -extraPadding);
+      }
+
+      const output = [];
+      let curr = root;
+      for (let i = 0; i < bitString.length; i++) {
+        curr = bitString[i] === "0" ? curr.left : curr.right;
+        if (curr && curr.char !== null) {
+          output.push(curr.char);
+          curr = root;
+        }
+      }
+      return output.join("");
+    }
+
+    function runCompression() {
+      const text = document.getElementById("sourceText").value;
+      document.getElementById("charCountLabel").textContent = `${text.length.toLocaleString()} characters`;
+
+      if (!text) {
+        alert("Please enter or upload some text first.");
+        return;
+      }
+
+      const t0 = performance.now();
+      const freqMap = buildFrequencyMap(text);
+      const root = buildHuffmanTree(freqMap);
+      const codes = generateCodes(root);
+
+      let bitString = "";
+      for (const ch of text) {
+        bitString += codes[ch];
+      }
+
+      const packed = packHuffBinary(freqMap, bitString);
+      const restored = decodeHuffBinary(packed.buffer);
+      const elapsedMs = performance.now() - t0;
+
+      const originalBytes = new TextEncoder().encode(text).length;
+      const compressedBytes = packed.buffer.length;
+      const savedPct = ((1 - compressedBytes / originalBytes) * 100).toFixed(2);
+      const avgBits = (bitString.length / text.length).toFixed(2);
+
+      currentState.root = root;
+      currentState.codes = codes;
+      currentState.freqMap = freqMap;
+      currentState.packedBytes = packed.buffer;
+
+      document.getElementById("statOriginalSize").textContent = `${originalBytes.toLocaleString()} B`;
+      document.getElementById("statCompressedSize").textContent = `${compressedBytes.toLocaleString()} B`;
+      document.getElementById("statBreakdown").textContent = `Hdr: ${packed.headerSize} B | Data: ${packed.payloadSize} B`;
+
+      const ratioEl = document.getElementById("statRatio");
+      ratioEl.textContent = `${savedPct}%`;
+      ratioEl.className = `text-lg font-bold mt-1 ${parseFloat(savedPct) >= 0 ? "text-emerald-400" : "text-rose-400"}`;
+
+      document.getElementById("statAvgBits").textContent = `Avg: ${avgBits} bits/char`;
+      document.getElementById("statTime").textContent = `${elapsedMs.toFixed(2)} ms`;
+      document.getElementById("statUnique").textContent = `Unique K = ${Object.keys(freqMap).length}`;
+
+      document.getElementById("totalBitsLabel").textContent = `${bitString.length.toLocaleString()} total bits`;
+      document.getElementById("bitstreamPreview").textContent =
+        bitString.slice(0, 256) + (bitString.length > 256 ? "..." : "");
+
+      const badge = document.getElementById("integrityBadge");
+      if (restored === text) {
+        badge.textContent = "Lossless Integrity: Verified (100% Match)";
+        badge.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium";
+      } else {
+        badge.textContent = "Integrity Check Failed";
+        badge.className = "text-xs px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 font-medium";
+      }
+
+      renderCodeTable();
+      renderHuffmanTree(root);
+    }
+
+    function formatSymbol(ch) {
+      if (ch === " ") return "' ' (Space)";
+      if (ch === "\n") return "\\n (Newline)";
+      if (ch === "\t") return "\\t (Tab)";
+      return ch;
+    }
+
+    function renderCodeTable() {
+      const query = document.getElementById("searchCodeInput").value.toLowerCase();
+      const tbody = document.getElementById("codeTableBody");
+      tbody.innerHTML = "";
+
+      const entries = Object.entries(currentState.freqMap).sort((a, b) => b[1] - a[1]);
+      for (const [ch, freq] of entries) {
+        const display = formatSymbol(ch);
+        const code = currentState.codes[ch];
+        if (query && !display.toLowerCase().includes(query) && !code.includes(query)) continue;
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-900/80 transition";
+        tr.innerHTML = `
+          <td class="py-2 px-3 text-slate-200 font-semibold">${escapeHtml(display)}</td>
+          <td class="py-2 px-3 text-slate-400">${freq}</td>
+          <td class="py-2 px-3 text-indigo-400 font-bold">${code}</td>
+          <td class="py-2 px-3 text-right text-slate-400">${code.length}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function filterCodeTable() {
+      renderCodeTable();
+    }
+
+    function renderHuffmanTree(root) {
+      const svg = document.getElementById("huffmanSvg");
+      svg.innerHTML = "";
+      if (!root) return;
+
+      // Compute layout coordinates via in-order leaf indexing
+      let leafIndex = 0;
+      const horizontalSpacing = 54;
+      const verticalSpacing = 74;
+      let maxDepth = 0;
+
+      function assignCoords(node, depth = 0) {
+        if (!node) return;
+        maxDepth = Math.max(maxDepth, depth);
+        if (node.char !== null) {
+          node.x = leafIndex * horizontalSpacing + 45;
+          node.y = depth * verticalSpacing + 40;
+          leafIndex++;
+          return;
+        }
+        assignCoords(node.left, depth + 1);
+        assignCoords(node.right, depth + 1);
+        if (node.left && node.right) {
+          node.x = (node.left.x + node.right.x) / 2;
+        } else if (node.left) {
+          node.x = node.left.x;
+        }
+        node.y = depth * verticalSpacing + 40;
+      }
+
+      assignCoords(root);
+
+      const width = Math.max(520, leafIndex * horizontalSpacing + 60);
+      const height = Math.max(360, (maxDepth + 1) * verticalSpacing + 40);
+      svg.setAttribute("width", width);
+      svg.setAttribute("height", height);
+      svg.style.transform = `scale(${currentState.treeScale})`;
+
+      const ns = "http://www.w3.org/2000/svg";
+
+      function drawEdges(node) {
+        if (!node) return;
+        if (node.left) {
+          const line = document.createElementNS(ns, "line");
+          line.setAttribute("x1", node.x);
+          line.setAttribute("y1", node.y);
+          line.setAttribute("x2", node.left.x);
+          line.setAttribute("y2", node.left.y);
+          line.setAttribute("stroke", "#475569");
+          line.setAttribute("stroke-width", "1.8");
+          svg.appendChild(line);
+
+          const label = document.createElementNS(ns, "text");
+          label.setAttribute("x", (node.x + node.left.x) / 2 - 8);
+          label.setAttribute("y", (node.y + node.left.y) / 2 - 3);
+          label.setAttribute("fill", "#fbbf24");
+          label.setAttribute("font-size", "11");
+          label.setAttribute("font-family", "monospace");
+          label.setAttribute("font-weight", "bold");
+          label.textContent = "0";
+          svg.appendChild(label);
+
+          drawEdges(node.left);
+        }
+        if (node.right) {
+          const line = document.createElementNS(ns, "line");
+          line.setAttribute("x1", node.x);
+          line.setAttribute("y1", node.y);
+          line.setAttribute("x2", node.right.x);
+          line.setAttribute("y2", node.right.y);
+          line.setAttribute("stroke", "#475569");
+          line.setAttribute("stroke-width", "1.8");
+          svg.appendChild(line);
+
+          const label = document.createElementNS(ns, "text");
+          label.setAttribute("x", (node.x + node.right.x) / 2 + 4);
+          label.setAttribute("y", (node.y + node.right.y) / 2 - 3);
+          label.setAttribute("fill", "#34d399");
+          label.setAttribute("font-size", "11");
+          label.setAttribute("font-family", "monospace");
+          label.setAttribute("font-weight", "bold");
+          label.textContent = "1";
+          svg.appendChild(label);
+
+          drawEdges(node.right);
+        }
+      }
+
+      function drawNodes(node) {
+        if (!node) return;
+        const isLeaf = node.char !== null;
+
+        const circle = document.createElementNS(ns, "circle");
+        circle.setAttribute("cx", node.x);
+        circle.setAttribute("cy", node.y);
+        circle.setAttribute("r", isLeaf ? "19" : "16");
+        circle.setAttribute("fill", isLeaf ? "#065f46" : "#1e1b4b");
+        circle.setAttribute("stroke", isLeaf ? "#10b981" : "#6366f1");
+        circle.setAttribute("stroke-width", "2");
+        svg.appendChild(circle);
+
+        const text = document.createElementNS(ns, "text");
+        text.setAttribute("x", node.x);
+        text.setAttribute("y", isLeaf ? node.y - 2 : node.y + 4);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("fill", "#f8fafc");
+        text.setAttribute("font-size", "11");
+        text.setAttribute("font-family", "monospace");
+        text.setAttribute("font-weight", "bold");
+
+        if (isLeaf) {
+          const chDisplay = node.char === " " ? "SPC" : node.char === "\n" ? "\\n" : node.char;
+          text.textContent = chDisplay;
+          svg.appendChild(text);
+
+          const sub = document.createElementNS(ns, "text");
+          sub.setAttribute("x", node.x);
+          sub.setAttribute("y", node.y + 11);
+          sub.setAttribute("text-anchor", "middle");
+          sub.setAttribute("fill", "#a7f3d0");
+          sub.setAttribute("font-size", "9");
+          sub.setAttribute("font-family", "monospace");
+          sub.textContent = `(${node.freq})`;
+          svg.appendChild(sub);
+        } else {
+          text.textContent = node.freq;
+          svg.appendChild(text);
+        }
+
+        drawNodes(node.left);
+        drawNodes(node.right);
+      }
+
+      drawEdges(root);
+      drawNodes(root);
+    }
+
+    function zoomTree(delta) {
+      currentState.treeScale = Math.min(2.2, Math.max(0.35, currentState.treeScale + delta));
+      document.getElementById("huffmanSvg").style.transform = `scale(${currentState.treeScale})`;
+    }
+
+    function resetZoom() {
+      currentState.treeScale = 1;
+      document.getElementById("huffmanSvg").style.transform = "scale(1)";
+    }
+
+    function downloadHuffFile() {
+      if (!currentState.packedBytes) {
+        runCompression();
+      }
+      if (!currentState.packedBytes) return;
+      const blob = new Blob([currentState.packedBytes], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "compressed_output.huff";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadDecodedTxt() {
+      if (!currentState.lastDecodedText) return;
+      const blob = new Blob([currentState.lastDecodedText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "restored_output.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function switchMode(mode) {
+      const compView = document.getElementById("compressView");
+      const decompView = document.getElementById("decompressView");
+      const tabComp = document.getElementById("tabCompress");
+      const tabDecomp = document.getElementById("tabDecompress");
+
+      if (mode === "compress") {
+        compView.classList.remove("hidden");
+        decompView.classList.add("hidden");
+        tabComp.className = "px-4 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white transition";
+        tabDecomp.className = "px-4 py-1.5 rounded-md text-sm font-medium text-slate-300 hover:text-white transition";
+      } else {
+        compView.classList.add("hidden");
+        decompView.classList.remove("hidden");
+        tabDecomp.className = "px-4 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white transition";
+        tabComp.className = "px-4 py-1.5 rounded-md text-sm font-medium text-slate-300 hover:text-white transition";
+      }
+    }
+
+    function loadPreset(key) {
+      document.getElementById("sourceText").value = PRESETS[key];
+      runCompression();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // File Upload Listeners
+    document.getElementById("txtFileInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById("sourceText").value = ev.target.result;
+        runCompression();
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("huffFileInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const t0 = performance.now();
+          const bytes = new Uint8Array(ev.target.result);
+          const restored = decodeHuffBinary(bytes);
+          const elapsed = performance.now() - t0;
+
+          currentState.lastDecodedText = restored;
+          document.getElementById("decompArchiveSize").textContent = `${bytes.length.toLocaleString()} B`;
+          document.getElementById("decompRestoredSize").textContent = `${new TextEncoder().encode(restored).length.toLocaleString()} B`;
+          document.getElementById("decompTime").textContent = `${elapsed.toFixed(2)} ms`;
+          document.getElementById("decodedOutputText").value = restored;
+          document.getElementById("decompResultBox").classList.remove("hidden");
+        } catch (err) {
+          alert("Error decoding .huff file: " + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Initialize default sample on load
+    window.addEventListener("DOMContentLoaded", () => {
+      loadPreset("medium");
+    });
+  </script>
+</body>
+</html>
